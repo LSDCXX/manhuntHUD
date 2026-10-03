@@ -5,6 +5,7 @@
 #include "Events.h"
 #include "CTimer.h"
 #include "CSprite2d.h"
+#include "GxtText.h"
 
 using namespace plugin;
 
@@ -47,7 +48,11 @@ public:
 
         bool isRedText = (strncmp(CHud::m_Message, "~r~", 3) == 0 || strncmp(CHud::m_Message, "~R~", 3) == 0);
 
-        if (MissionSceneText::bRecapShowing && strstr(MissionSceneText::capturedTitle, "FAILED")) {
+        if (MissionSceneText::bRecapShowing &&
+            (strstr(MissionSceneText::capturedTitle, "FAILED") ||
+             strstr(MissionSceneText::capturedTitle, "失败") ||
+             strstr(MissionSceneText::capturedTitle, "失敗") ||
+             strstr(MissionSceneText::capturedTitle, GxtOr("FAILED", "失败")))) {
             m_failBlockExpiry = currentTime + 10000;
         }
 

@@ -8,6 +8,7 @@
 #include "CClock.h"
 #include "CVehicle.h"
 #include "CWeapon.h"
+#include "GxtText.h"
 #include <string>
 #include <vector>
 #include <algorithm>
@@ -23,17 +24,9 @@ static constexpr float BAR_H = 10.0f;
 static constexpr float SPACING = 52.0f;
 static constexpr uint8_t MSG_ALPHA = 110;
 
-static const char* weaponNames[] = {
-    "Fist", "Brass Knuckles", "Golf Club", "Nightstick", "Knife", "Baseball Bat", "Shovel", "Pool Cue", "Katana", "Chainsaw",
-    "Dildo", "Dildo", "Vibrator", "Vibrator", "Flowers", "Cane",
-    "Grenade", "Tear Gas", "Molotov", "", "", "",
-    "Pistol", "Silenced Pistol", "Desert Eagle", "Shotgun", "Sawed-off", "Combat Shotgun", "Micro Uzi", "MP5",
-    "AK-47", "M4", "Tec-9", "Rifle", "Sniper Rifle", "Rocket Launcher", "HS Rocket Launcher", "Flamethrower", "Minigun", "Satchel",
-    "Detonator", "Spraycan", "Fire Extinguisher", "Camera", "Night Vision", "Infrared", "Parachute"
-};
-
+// Fallbacks only; display text comes from GXT STAT### keys.
 static const char* dayNames[] = {
-    "SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"
+    "周日", "周一", "周二", "周三", "周四", "周五", "周六"
 };
 
 static inline float Res(float v) {
@@ -83,7 +76,7 @@ void DrawStatBar(float x, float y, const char* name, float val, CRGBA col) {
     CFont::SetDropColor(CRGBA(0, 0, 0, 255));
     CFont::SetBackground(false, false);
 
-    CFont::PrintString(x, y - h - Res(31.0f), (char*)name);
+    CFont::PrintString(x, y - h - Res(31.0f), const_cast<char*>(name));
 
     CSprite2d::DrawRect(CRect(x, y - h, x + w, y), CRGBA(8, 25, 35, 180));
     CSprite2d::DrawRect(CRect(x, y - h, x + w, y), CRGBA(col.r, col.g, col.b, 45));
@@ -157,22 +150,28 @@ void DrawstatsTab() {
 
     LoadResources();
 
-    struct StatItem { const char* name; float value; };
+    struct StatItem { std::string name; float value; };
     std::vector<StatItem> stats;
 
+    auto addStat = [&](int statId, const char* fallback) {
+        char nameBuf[64];
+        GetStatName(nameBuf, sizeof(nameBuf), statId, fallback);
+        stats.push_back({ nameBuf, CStats::GetStatValue(statId) });
+    };
+
     if (weaponId >= 22 && weaponId <= 34) {
-        stats.push_back({ weaponNames[weaponId], CStats::GetStatValue(weaponId + 47) });
+        addStat(weaponId + 47, "");
     }
 
-    stats.push_back({ "Lung Capacity", CStats::GetStatValue(225) });
-    stats.push_back({ "Flying Skill", CStats::GetStatValue(223) });
-    stats.push_back({ "Cycling Skill", CStats::GetStatValue(230) });
-    stats.push_back({ "Bike Skill", CStats::GetStatValue(229) });
-    stats.push_back({ "Driving Skill", CStats::GetStatValue(160) });
-    stats.push_back({ "Muscle", CStats::GetStatValue(23) });
-    stats.push_back({ "Fat", CStats::GetStatValue(21) });
-    stats.push_back({ "Stamina", CStats::GetStatValue(22) });
-    stats.push_back({ "Total Respect", CStats::GetStatValue(64) });
+    addStat(225, "肺活量");
+    addStat(223, "飞行技术");
+    addStat(230, "自行车技术");
+    addStat(229, "摩托车技术");
+    addStat(160, "驾驶技术");
+    addStat(23, "肌肉");
+    addStat(21, "脂肪");
+    addStat(22, "耐力");
+    addStat(64, "总威望");
 
     float w = Res(BAR_W);
     float x = Res(233.5f) - (w / 2.0f);
@@ -200,7 +199,7 @@ void DrawstatsTab() {
     CRGBA statBlue(21, 106, 146, 200);
     float currentY = anchorY;
     for (const auto& stat : stats) {
-        DrawStatBar(x, currentY, stat.name, stat.value, statBlue);
+        DrawStatBar(x, currentY, stat.name.c_str(), stat.value, statBlue);
         currentY -= Res(SPACING);
     }
 

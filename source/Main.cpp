@@ -11,6 +11,7 @@
 #include "CMenuManager.h"
 #include "CHud.h"
 #include "CTimer.h"
+#include "GxtText.h"
 #include <windows.h>
 #include <string>
 #include <algorithm>
@@ -34,14 +35,33 @@ static const char* weaponTextureNames[] = {
     "detonator", "spraycan", "fire_ex", "camera", "nvgoog", "irgoog", "parachute"
 };
 
-static const char* weaponCleanNames[] = {
-    "Fist", "Brass Knuckles", "Golf Club", "Nightstick", "Knife", "Baseball Bat", "Shovel", "Pool Cue", "Katana", "Chainsaw",
-    "Long Dildo", "Short Dildo", "Long Vibrator", "Short Vibrator", "Flowers", "Cane",
-    "Grenade", "Tear Gas", "Molotov", "", "", "",
-    "Pistol", "Silenced Pistol", "Desert Eagle", "Shotgun", "Sawed-off Shotgun", "Combat Shotgun", "Micro Uzi", "MP5",
-    "AK-47", "M4", "Tec-9", "Country Rifle", "Sniper Rifle", "Rocket Launcher", "Heat-Seeking Rocket Launcher", "Flamethrower", "Minigun", "Satchel",
-    "Detonator", "Spray Can", "Fire Extinguisher", "Camera", "Night-Vision Goggles", "Thermal Goggles", "Parachute"
+// SA weapon.dat / GXT keys; English shown only if the key is missing.
+static const char* weaponGxtKeys[] = {
+    "FIST", "BRASSKNUCKLE", "GOLFCLUB", "NITESTICK", "KNIFECUR", "BAT", "SHOVEL", "POOLCUE", "KATANA", "CHAINSAW",
+    "DILDO1", "DILDO2", "VIBE1", "VIBE2", "FLOWERA", "CANE",
+    "GRENADE", "TEARGAS", "MOLOTOV", "", "", "",
+    "COLT45", "SILENCED", "DESERT_EAGLE", "CHROMEGUN", "SAWNOFF", "SHOTGSPA", "MICRO_UZI", "MP5LNG",
+    "AK47", "M4", "TEC9", "CUNTGUN", "SNIPER", "ROCKETLA", "HSROCKET", "FLAMETHROWER", "MINIGUN", "SATCHEL",
+    "BOMB", "SPRAYCAN", "FIRE_EX", "CAMERA", "NVGOGGLES", "IRGOGGLES", "PARACHUTE"
 };
+
+static const char* weaponCleanNames[] = {
+    "拳头", "指虎", "高尔夫球棒", "警棍", "小刀", "棒球棒", "铁锹", "台球杆", "武士刀", "电锯",
+    "长假阳具", "短假阳具", "长振动棒", "短振动棒", "花束", "手杖",
+    "手榴弹", "催泪弹", "燃烧瓶", "", "", "",
+    "手枪", "消音手枪", "沙漠之鹰", "霰弹枪", "短管霰弹枪", "战斗霰弹枪", "微型冲锋枪", "MP5",
+    "AK-47", "M4", "Tec-9", "乡村步枪", "狙击步枪", "火箭筒", "热追踪火箭筒", "火焰喷射器", "加特林", "遥控炸药包",
+    "起爆器", "喷漆罐", "灭火器", "照相机", "夜视仪", "热成像仪", "降落伞"
+};
+
+static const char* GetWeaponDisplayName(int weaponId) {
+    if (weaponId < 0 || weaponId >= 47)
+        return "";
+    const char* key = weaponGxtKeys[weaponId];
+    if (!key || !key[0])
+        return "";
+    return GxtOr(key, weaponCleanNames[weaponId]);
+}
 
 
 class VehicleName {
@@ -221,7 +241,7 @@ public:
 
             if (VehicleName::nDisplayTimer <= 0.0f) {
 
-                const char* weaponName = weaponCleanNames[weaponId];
+                const char* weaponName = GetWeaponDisplayName(weaponId);
                 if (weaponName && weaponName[0] != '\0') {
 
                     unsigned int timeLeft = MHud::weaponNameDisplayEndTime - currentTime;

@@ -17,6 +17,8 @@ public:
     static inline float fFadeAlpha = 0.0f;
     static inline float fVisibilityTimer = 0.0f;
     static inline bool bHintShown = false;
+    static inline char pauseOnText[128] = "已暂停: 按 %s 继续";
+    static inline char pauseOffText[128] = "按 %s 暂停过场";
 
     static std::string GetConfigPath() {
         char buffer[MAX_PATH];
@@ -129,9 +131,9 @@ private:
         UINT scanCode = MapVirtualKey(nCSKey, MAPVK_VK_TO_VSC);
         if (GetKeyNameTextA(scanCode << 16, keyName, sizeof(keyName)) == 0) strcpy(keyName, "P");
 
-        char displayLine[128];
-        if (paused) sprintf(displayLine, "PAUSED: Press %s to Resume", keyName);
-        else sprintf(displayLine, "Press %s to Pause Cutscene", keyName);
+        char displayLine[160];
+        const char* fmt = paused ? pauseOnText : pauseOffText;
+        sprintf(displayLine, fmt, keyName);
 
         float fontScaleW = scale * 0.32f;
         float fontScaleH = scale * 0.62f;
@@ -164,5 +166,7 @@ private:
         std::string iniPath = GetConfigPath();
         bEnabled = GetPrivateProfileIntA("Settings", "EnableCutscenePause", 1, iniPath.c_str()) != 0;
         nCSKey = GetPrivateProfileIntA("Settings", "CSKey", 80, iniPath.c_str());
+        GetPrivateProfileStringA("Settings", "PauseOnText", "已暂停: 按 %s 继续", pauseOnText, sizeof(pauseOnText), iniPath.c_str());
+        GetPrivateProfileStringA("Settings", "PauseOffText", "按 %s 暂停过场", pauseOffText, sizeof(pauseOffText), iniPath.c_str());
     }
 } cutscenePause;

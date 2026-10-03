@@ -7,7 +7,8 @@
 #include "CCutsceneMgr.h"
 #include "CCamera.h"
 #include "CStats.h"
-#include <windows.h> 
+#include "GxtText.h"
+#include <windows.h>
 
 using namespace plugin;
 
@@ -47,16 +48,60 @@ public:
 
     static inline int  continueKey = VK_SHIFT;
     static inline char continueKeyName[64] = "SHIFT";
-    static inline char iniPromptText[128] = "PRESS TO CONTINUE";
+    static inline char iniPromptText[128] = "按住继续";
 
+    // Resolved event strings (GXT when available).
+    static inline char gxtWasted[32] = "WASTED";
+    static inline char gxtBusted[32] = "BUSTED";
+    static inline char gxtPassed[32] = "PASSED";
+    static inline char gxtFailed[32] = "FAILED";
+    static inline char gxtTimeLabel[32] = "TIME";
+    static inline char gxtKillsLabel[32] = "KILLS";
+    static inline bool gxtEventsLoaded = false;
+
+    static void LoadGxtEvents() {
+        if (gxtEventsLoaded) return;
+        // Vanilla SA keys (hashed GXT); Chinese packs usually keep the same keys.
+        GxtCopy(gxtWasted, sizeof(gxtWasted), "DEAD", "死亡");
+        GxtCopy(gxtBusted, sizeof(gxtBusted), "BUSTED", "被捕");
+        GxtCopy(gxtPassed, sizeof(gxtPassed), "PASSED", "完成");
+        GxtCopy(gxtFailed, sizeof(gxtFailed), "FAILED", "失败");
+        // SA "TIME" key is not a UI label — hardcode Chinese.
+        strncpy(gxtTimeLabel, "时间", sizeof(gxtTimeLabel) - 1);
+        gxtTimeLabel[sizeof(gxtTimeLabel) - 1] = '\0';
+        strncpy(gxtKillsLabel, "击杀", sizeof(gxtKillsLabel) - 1);
+        gxtKillsLabel[sizeof(gxtKillsLabel) - 1] = '\0';
+        gxtEventsLoaded = true;
+    }
+
+    static bool TextHas(const char* text, const char* needle) {
+        return text && needle && needle[0] && strstr(text, needle) != nullptr;
+    }
+
+    // Chinese big-messages are whole phrases; also match common localized words.
     static bool IsMajorEvent(const char* text) {
         if (!text) return false;
-        return (strstr(text, "PASSED") || strstr(text, "FAILED") || strstr(text, "WASTED") || strstr(text, "BUSTED"));
+        LoadGxtEvents();
+        if (TextHas(text, gxtPassed) || TextHas(text, gxtFailed)
+            || TextHas(text, gxtWasted) || TextHas(text, gxtBusted))
+            return true;
+        if (strstr(text, "PASSED") || strstr(text, "FAILED")
+            || strstr(text, "WASTED") || strstr(text, "BUSTED"))
+            return true;
+        // Simplified / Traditional Chinese status words
+        return strstr(text, "任务失败") || strstr(text, "任務失敗")
+            || strstr(text, "任务完成") || strstr(text, "任務完成")
+            || strstr(text, "失败") || strstr(text, "失敗")
+            || strstr(text, "完成") || strstr(text, "通过") || strstr(text, "通過")
+            || strstr(text, "死亡") || strstr(text, "浪费") || strstr(text, "浪費")
+            || strstr(text, "被捕") || strstr(text, "逮捕");
     }
 
     static bool IsAnyResult(const char* text) {
         if (!text || text[0] == '\0') return false;
-        return (IsMajorEvent(text) || strstr(text, "Round") || strstr(text, "LEVEL") || strstr(text, "Passed"));
+        if (IsMajorEvent(text)) return true;
+        return strstr(text, "Round") || strstr(text, "LEVEL") || strstr(text, "Passed")
+            || strstr(text, "回合") || strstr(text, "等级") || strstr(text, "等級");
     }
 
     static bool IsBadReadPtr(void* p) {
@@ -70,7 +115,22 @@ public:
 
     static void LoadConfig() {
         continueKey = GetPrivateProfileIntA("Settings", "ContinueKey", VK_SHIFT, ".\\ManhuntHud.SA.ini");
-        GetPrivateProfileStringA("Settings", "ContinueText", "PRESS TO CONTINUE", iniPromptText, sizeof(iniPromptText), ".\\ManhuntHud.SA.ini");
+        GetPrivateProfileStringA("Settings", "ContinueText", "按住继续", iniPromptText, sizeof(iniPromptText), ".\\ManhuntHud.SA.ini");
+        // Also read next to the ASI (scripts / mod folder)
+        {
+            char asiDir[MAX_PATH] = { 0 };
+            HMODULE hm = NULL;
+            if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                (LPCSTR)&LoadConfig, &hm)) {
+                GetModuleFileNameA(hm, asiDir, MAX_PATH);
+                char* slash = strrchr(asiDir, '\\');
+                if (slash) {
+                    strcpy(slash + 1, "ManhuntHud.SA.ini");
+                    GetPrivateProfileStringA("Settings", "ContinueText", iniPromptText, iniPromptText, sizeof(iniPromptText), asiDir);
+                    continueKey = GetPrivateProfileIntA("Settings", "ContinueKey", continueKey, asiDir);
+                }
+            }
+        }
         UINT scanCode = MapVirtualKey(continueKey, MAPVK_VK_TO_VSC);
         LONG lParam = (scanCode << 16);
         if (continueKey >= VK_PRIOR && continueKey <= VK_HELP) lParam |= 0x01000000L;
@@ -107,7 +167,8 @@ public:
             bool isBusted = (pedState == 63);
 
             if (isDead || isBusted) {
-                const char* eventName = isDead ? "WASTED" : "BUSTED";
+                LoadGxtEvents();
+                const char* eventName = isDead ? gxtWasted : gxtBusted;
                 if (strcmp(lastProcessedString, eventName) != 0) {
                     bProcessingEvent = true;
                     strncpy(capturedTitle, eventName, 127);
@@ -129,7 +190,12 @@ public:
             if (IsAnyResult(hudMsg) && strcmp(lastProcessedString, hudMsg) != 0) {
 
 
-                bool isMissionResult = (strstr(hudMsg, "PASSED") || strstr(hudMsg, "FAILED") || strstr(hudMsg, "Passed"));
+                bool isMissionResult = TextHas(hudMsg, gxtPassed) || TextHas(hudMsg, gxtFailed)
+                    || strstr(hudMsg, "PASSED") || strstr(hudMsg, "FAILED") || strstr(hudMsg, "Passed")
+                    || strstr(hudMsg, "任务失败") || strstr(hudMsg, "任務失敗")
+                    || strstr(hudMsg, "任务完成") || strstr(hudMsg, "任務完成")
+                    || strstr(hudMsg, "失败") || strstr(hudMsg, "失敗")
+                    || strstr(hudMsg, "完成");
                 if (isMissionResult && (currentTime - lastClosedTime < 4000)) {
                     CHud::m_BigMessage[0][0] = '\0'; 
                     return;
@@ -207,8 +273,12 @@ public:
         float boxRight = centerX + (boxWidth / 2.0f);
 
         unsigned char textAlpha = (unsigned char)(255.0f * alphaPercent);
-        CRGBA themeColor = (strcmp(capturedTitle, "BUSTED") == 0) ? CRGBA(100, 180, 255, textAlpha) :
-            (strstr(capturedTitle, "PASSED") || bIsTemporary) ? CRGBA(255, 220, 0, textAlpha) : CRGBA(255, 60, 60, textAlpha);
+        LoadGxtEvents();
+        CRGBA themeColor = (strcmp(capturedTitle, gxtBusted) == 0 || strcmp(capturedTitle, "BUSTED") == 0
+            || strstr(capturedTitle, "被捕") || strstr(capturedTitle, "逮捕")) ? CRGBA(100, 180, 255, textAlpha) :
+            (TextHas(capturedTitle, gxtPassed) || strstr(capturedTitle, "PASSED")
+             || strstr(capturedTitle, "完成") || strstr(capturedTitle, "通过") || strstr(capturedTitle, "通過")
+             || bIsTemporary) ? CRGBA(255, 220, 0, textAlpha) : CRGBA(255, 60, 60, textAlpha);
 
         if (!bIsTemporary && !bIsDeathArrest) {
             unsigned char boxAlpha = (unsigned char)(90.0f * alphaPercent);
@@ -257,7 +327,10 @@ public:
             float currentY = curTopY + titleYOffset + SCALE_Y(100.0f);
 
             if (finalMissionTime > 0 && !bIsTemporary) {
-                char stats[128]; sprintf(stats, "TIME: %02d:%02d  -  KILLS: %d", (finalMissionTime / 1000) / 60, (finalMissionTime / 1000) % 60, finalMissionKills);
+                char stats[160];
+                sprintf(stats, "%s: %02d:%02d  -  %s: %d",
+                    gxtTimeLabel, (finalMissionTime / 1000) / 60, (finalMissionTime / 1000) % 60,
+                    gxtKillsLabel, finalMissionKills);
                 CFont::SetFontStyle(FONT_MENU);
                 CFont::SetScale(0.55f * resScale, 1.10f * resScale);
                 CFont::SetColor(CRGBA(255, 255, 255, textAlpha));
@@ -265,7 +338,9 @@ public:
                 currentY += SCALE_Y(60.0f);
             }
 
-            if (capturedFailReason[0] != '\0' && strstr(capturedTitle, "FAILED") && !bIsTemporary) {
+            if (capturedFailReason[0] != '\0' &&
+                (TextHas(capturedTitle, gxtFailed) || strstr(capturedTitle, "FAILED")
+                 || strstr(capturedTitle, "失败") || strstr(capturedTitle, "失敗")) && !bIsTemporary) {
                 CFont::SetFontStyle(FONT_SUBTITLES);
                 CFont::SetScale(0.62f * resScale, 1.25f * resScale);
                 CFont::SetColor(CRGBA(255, 60, 60, textAlpha));
